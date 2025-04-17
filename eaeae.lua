@@ -17,6 +17,7 @@ local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
 local delayBetweenCollections = 0.2 -- Delay for consistent remote processing
+local numPasses = 3 -- Number of passes to attempt collection
 
 local trackedBonds = {} -- Table to store unique Bond objects
 
@@ -59,21 +60,24 @@ task.spawn(function()
         trackAllBonds() -- Track all Bonds dynamically at this step
     end
 
-    -- After tweening, teleport to each tracked Bond and collect them
-    for _, bond in ipairs(trackedBonds) do
-        local bondPos = nil
-        if bond:IsA("Model") and bond.PrimaryPart then
-            bondPos = bond.PrimaryPart.Position -- Use Model's PrimaryPart position
-        elseif bond:IsA("BasePart") then
-            bondPos = bond.Position -- Use BasePart position
-        end
+    -- After tweening, teleport to each tracked Bond and collect them in multiple passes
+    for pass = 1, numPasses do
+        print("Starting collection pass:", pass)
+        for _, bond in ipairs(trackedBonds) do
+            local bondPos = nil
+            if bond:IsA("Model") and bond.PrimaryPart then
+                bondPos = bond.PrimaryPart.Position -- Use Model's PrimaryPart position
+            elseif bond:IsA("BasePart") then
+                bondPos = bond.Position -- Use BasePart position
+            end
 
-        if bondPos then
-            root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
-            collectBond(bond) -- Collect the Bond
+            if bondPos then
+                root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
+                collectBond(bond) -- Collect the Bond
+            end
         end
     end
 
     -- Final log after collection
-    print("Finished collecting Bonds. Total Bonds collected:", #trackedBonds)
+    print("Finished collecting Bonds in", numPasses, "passes. Total Bonds collected:", #trackedBonds)
 end)
