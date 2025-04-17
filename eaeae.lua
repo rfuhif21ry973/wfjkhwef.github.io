@@ -1,75 +1,124 @@
-local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
-local plr = Players.LocalPlayer
-local chr = plr.Character or plr.CharacterAdded:Wait()
-local root = chr:WaitForChild("HumanoidRootPart")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local runtimeItems = Workspace:WaitForChild("RuntimeItems")
+local remote = ReplicatedStorage.Packages.RemotePromise.Remotes.C_ActivateObject
+
+local collectDistance = 20 -- Distance within which Bonds will be collected
+local walkDelay = 0.1 -- Delay for checking nearby Bonds
+local teleportDelay = 0.7 -- Delay between teleporting to Bond locations
+
+local trackedBonds = {} -- Table to store all Bond objects
 
 local x = 57
 local y = 3
 local startZ = 30000
 local endZ = -49032.99
-local stepZ = -3000 -- Step size for faster tweening
+local stepZ = -3000 -- Step size for tweening
 local duration = 0.5 -- Duration for each tween step
-local teleportDelay = 0.7 -- Delay between teleporting to Bond locations
 
-local trackedBonds = {} -- Table to store all Bond objects
+-- Creates a floating label above the Bond
+local function createBillboard(bond)
+    if not bond:FindFirstChild("BondLabel") then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "BondLabel"
+        billboard.Size = UDim2.new(0, 100, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Adornee = bond:FindFirstChildWhichIsA("BasePart")
+        billboard.Parent = bond
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "BOND"
+        label.TextColor3 = Color3.fromRGB(255, 255, 0)
+        label.TextStrokeTransparency = 0
+        label.TextScaled = true
+        label.Font = Enum.Font.GothamBold
+        label.Parent = billboard
+    end
+end
+
+-- Highlight Bonds within range
+local function highlightNearbyBonds()
+    for _, bond in pairs(runtimeItems:GetChildren()) do
+        if bond:IsA("Model") and bond.Name:match("Bond") then
+            local distance = (humanoidRootPart.Position - bond:GetModelCFrame().Position).Magnitude
+            if distance <= 150 then -- Larger detection radius for visibility
+                createBillboard(bond)
+            else
+                local label = bond:FindFirstChild("BondLabel")
+                if label then label:Destroy() end
+            end
+        end
+    end
+end
+
+-- Function to dynamically track Bond locations during tweening
+local function trackBonds()
+    for _, bond in pairs(runtimeItems:GetChildren()) do
+        if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart and not table.find(trackedBonds, bond.PrimaryPart.Position) then
+            table.insert(trackedBonds, bond.PrimaryPart.Position)
+            print("Bond tracked:", bond.Name, "| Location:", bond.PrimaryPart.Position)
+        elseif bond:IsA("BasePart") and bond.Name:match("Bond") and not table.find(trackedBonds, bond.Position) then
+            table.insert(trackedBonds, bond.Position)
+            print("Bond tracked (BasePart):", bond.Name, "| Location:", bond.Position)
+        end
+    end
+end
 
 -- Function to create a tween to move the player
 local function tweenToPosition(newZ)
     local goal = {}
     goal.CFrame = CFrame.new(Vector3.new(x, y, newZ))
-    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), goal)
+    local tween = TweenService:Create(humanoidRootPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), goal)
     tween:Play()
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to dynamically track and log Bond locations
-local function trackBonds()
-    for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Track new Bond
-            print("Tracking Bond:", bond.Name, "| Location:", bond:GetModelCFrame().Position)
+-- Function to teleport to all tracked Bonds and collect them
+local function teleportAndCollect()
+    for _, bondPosition in ipairs(trackedBonds) do
+        humanoidRootPart.CFrame = CFrame.new(bondPosition) -- Teleport to Bond
+        print("Teleported to Bond at:", bondPosition)
+
+        -- Check nearby Bonds and collect them
+        for _, bond in pairs(runtimeItems:GetChildren()) do
+            if bond.PrimaryPart and (bond.PrimaryPart.Position - bondPosition).Magnitude <= collectDistance then
+                remote:FireServer(bond)
+                print("Collected Bond:", bond.Name)
+            elseif bond:IsA("BasePart") and (bond.Position - bondPosition).Magnitude <= collectDistance then
+                remote:FireServer(bond)
+                print("Collected Bond (BasePart):", bond.Name)
+            end
         end
+        task.wait(teleportDelay) -- Delay before teleporting to the next Bond
     end
 end
 
--- Function to teleport to tracked Bonds
-local function teleportToTrackedBonds()
-    for _, bond in ipairs(trackedBonds) do
-        if runtimeItems:FindFirstChild(bond.Name) then
-            local bondPos = nil
-            if bond:IsA("Model") and bond.PrimaryPart then
-                bondPos = bond.PrimaryPart.Position -- Use PrimaryPart for Model
-            elseif bond:IsA("BasePart") then
-                bondPos = bond.Position -- Use Position for BasePart
-            end
-
-            if bondPos then
-                root.CFrame = CFrame.new(bondPos) -- Teleport to Bond location
-                print("Teleported to Bond:", bond.Name, "| Location:", bondPos)
-            end
-            task.wait(teleportDelay) -- Delay before teleporting to the next Bond
-        else
-            print("Bond no longer exists in Workspace:", bond.Name)
-        end
-    end
-end
-
--- Start script logic
+-- Main script logic
 task.spawn(function()
-    -- Tween through the Z range and log Bonds dynamically
+    -- Tween through the Z-axis and track Bond locations
     for z = startZ, endZ, stepZ do
         tweenToPosition(z) -- Tween player movement
-        trackBonds() -- Dynamically track Bonds
+        trackBonds() -- Track Bonds at each step
     end
 
-    -- After tweening, teleport to all tracked Bonds
-    print("Finished tweening. Starting teleportation to tracked Bonds.")
-    teleportToTrackedBonds()
+    -- After tweening, teleport and collect all Bonds
+    print("Finished tweening. Starting teleportation and collection.")
+    teleportAndCollect()
+    print("Collection complete. Total Bonds collected:", #trackedBonds)
+end)
 
-    -- Final log after teleportation
-    print("Teleportation complete. Total Bonds tracked:", #trackedBonds)
+-- Continuous highlighting of nearby Bonds
+RunService.Heartbeat:Connect(function()
+    highlightNearbyBonds()
+    task.wait(walkDelay) -- Delay for updating highlights
 end)
