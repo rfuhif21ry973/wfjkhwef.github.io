@@ -14,7 +14,7 @@ local endZ = -49032.99
 local stepZ = -2000
 local duration = 0.5 -- Duration for each tween step
 
-local trackedBonds = {} -- Table to store bond locations
+local trackedBonds = {} -- Table to store unique Bond objects
 
 -- Function to create a tween
 local function tweenToPosition(newZ)
@@ -25,21 +25,15 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to track bonds, store their locations, and update the bond count
+-- Function to track bonds and update the bond count
 local function trackBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond:IsA("Model") and bond.PrimaryPart then
-            local bondPos = bond.PrimaryPart.Position
-            if not table.find(trackedBonds, bondPos) then
-                table.insert(trackedBonds, bondPos) -- Save unique bond's position
-                print("Bonds found so far: " .. #trackedBonds) -- Print updated bond count
-            end
-        elseif bond:IsA("BasePart") then
-            local bondPos = bond.Position
-            if not table.find(trackedBonds, bondPos) then
-                table.insert(trackedBonds, bondPos) -- Save unique bond's position
-                print("Bonds found so far: " .. #trackedBonds) -- Print updated bond count
-            end
+        if bond:IsA("Model") and bond.PrimaryPart and not table.find(trackedBonds, bond) then
+            table.insert(trackedBonds, bond) -- Add the unique Bond object
+            print("Bonds found so far: " .. #trackedBonds) -- Print updated count
+        elseif bond:IsA("BasePart") and not table.find(trackedBonds, bond) then
+            table.insert(trackedBonds, bond) -- Add the unique Bond object
+            print("Bonds found so far: " .. #trackedBonds) -- Print updated count
         end
     end
 end
@@ -53,11 +47,12 @@ task.spawn(function()
     -- Tween from startZ to endZ in steps
     for z = startZ, endZ, stepZ do
         tweenToPosition(z)
-        trackBonds() -- Track bonds during each step and print updates
+        trackBonds() -- Track bonds during each step
     end
 
     -- At the end of the tween, teleport to all tracked bonds extremely fast
-    for _, bondPos in ipairs(trackedBonds) do
+    for _, bond in ipairs(trackedBonds) do
+        local bondPos = bond.PrimaryPart and bond.PrimaryPart.Position or bond.Position
         root.CFrame = CFrame.new(bondPos)
         task.wait(0.1) -- Very fast teleport delay (adjustable)
     end
