@@ -16,7 +16,8 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local delayBetweenCollections = 0.2 -- Delay to ensure reliable remote processing
+local delayBetweenCollections = 0.1 -- Faster remote processing delay
+local teleportDelay = 0.7 -- Delay between teleporting to each Bond
 local maxRetries = 3 -- Number of retry passes
 
 local trackedBonds = {} -- Table to store all Bond objects
@@ -51,6 +52,7 @@ local function collectBond(bond)
         remote:FireServer(bond)
         print("Collected Bond (BasePart):", bond.Name)
     end
+    task.wait(delayBetweenCollections) -- Faster delay for collection
 end
 
 -- Function to collect all remaining Bonds
@@ -68,7 +70,7 @@ local function processRemainingBonds(pass)
         else
             table.insert(uncollected, bond) -- Add to uncollected list if collection fails
         end
-        task.wait(delayBetweenCollections)
+        task.wait(teleportDelay) -- Delay before teleporting to the next Bond
     end
 
     remainingBonds = uncollected -- Update the remaining Bonds for the next pass
