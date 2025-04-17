@@ -16,9 +16,8 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local collectWait = 0.3 -- Small wait to ensure Bond collection happens
+local collectDelay = 0.1 -- Delay for firing the collection remote repeatedly
 
-local detectionRadius = 150 -- Radius for highlighting Bonds
 local trackedBonds = {} -- Table to store unique Bond objects
 
 -- Function to create a tween to move the player
@@ -30,97 +29,49 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
+-- Function to continuously fire the collection remote
+local function collectVisibleBonds()
+    for _, bond in pairs(runtimeItems:GetChildren()) do
+        if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart and not table.find(trackedBonds, bond) then
+            remote:FireServer(bond) -- Fire the remote to collect the Bond
+            print("Collected Bond:", bond.Name) -- Log the collection
+            table.insert(trackedBonds, bond) -- Add Bond to the tracked list
+        end
+    end
+end
+
 -- Function to highlight Bonds within range
 local function highlightNearbyBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
         if bond:IsA("Model") and bond.Name:match("Bond") then
-            local distance = (root.Position - bond:GetModelCFrame().Position).Magnitude
-            if distance <= detectionRadius then
-                -- Create label above Bond
-                if not bond:FindFirstChild("BondLabel") then
-                    local billboard = Instance.new("BillboardGui")
-                    billboard.Name = "BondLabel"
-                    billboard.Size = UDim2.new(0, 100, 0, 50)
-                    billboard.StudsOffset = Vector3.new(0, 3, 0)
-                    billboard.AlwaysOnTop = true
-                    billboard.Adornee = bond.PrimaryPart
-                    billboard.Parent = bond
-
-                    local label = Instance.new("TextLabel")
-                    label.Size = UDim2.new(1, 0, 1, 0)
-                    label.BackgroundTransparency = 1
-                    label.Text = "BOND"
-                    label.TextColor3 = Color3.fromRGB(255, 255, 0)
-                    label.TextStrokeTransparency = 0
-                    label.TextScaled = true
-                    label.Font = Enum.Font.GothamBold
-                    label.Parent = billboard
-                end
-
-                -- Highlight Bond
-                if not bond:FindFirstChild("Highlight") then
-                    local highlight = Instance.new("Highlight")
-                    highlight.Name = "Highlight"
-                    highlight.FillColor = Color3.fromRGB(255, 215, 0)
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    highlight.FillTransparency = 0.3
-                    highlight.OutlineTransparency = 0
-                    highlight.Adornee = bond
-                    highlight.Parent = bond
-                end
+            if not bond:FindFirstChild("Highlight") then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "Highlight"
+                highlight.FillColor = Color3.fromRGB(255, 215, 0)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.FillTransparency = 0.3
+                highlight.OutlineTransparency = 0
+                highlight.Adornee = bond
+                highlight.Parent = bond
             end
         end
     end
 end
 
--- Function to track Bonds during tweening
-local function trackBonds()
-    for _, bond in pairs(runtimeItems:GetChildren()) do
-        -- Only track items explicitly named "Bond"
-        if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add Bond object to tracked list
-            print("Bond found:", bond.Name)
-        end
-    end
-end
-
--- Function to collect a Bond
-local function collectBond(bond)
-    if bond:IsA("Model") and bond.PrimaryPart then
-        remote:FireServer(bond) -- Collect the Bond using the Model's PrimaryPart
-        print("Collected Bond (Model):", bond.Name)
-    elseif bond:IsA("BasePart") then
-        remote:FireServer(bond) -- Collect the Bond if it’s a BasePart
-        print("Collected Bond (BasePart):", bond.Name)
-    end
-    task.wait(collectWait) -- Small wait after collecting
-end
-
 -- Start script logic
 task.spawn(function()
-    -- Tween through the specified Z range
+    -- Tween through the specified Z range and continuously collect Bonds
     for z = startZ, endZ, stepZ do
         tweenToPosition(z) -- Tween player movement
-        highlightNearbyBonds() -- Highlight nearby Bonds
-        trackBonds() -- Track bonds during each step
-    end
+        highlightNearbyBonds() -- Highlight Bonds for visibility
 
-    -- At the end of the tween, teleport to all tracked bonds extremely fast and collect them
-    for _, bond in ipairs(trackedBonds) do
-        local bondPos = nil
-        if bond:IsA("Model") and bond.PrimaryPart then
-            bondPos = bond.PrimaryPart.Position -- Use PrimaryPart for Models
-        elseif bond:IsA("BasePart") then
-            bondPos = bond.Position -- Use Position for BaseParts
-        end
-
-        if bondPos then
-            root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
-            collectBond(bond) -- Collect the Bond with a small wait
-            task.wait(0.3) -- Very fast teleport delay (adjustable)
+        -- Fire collection remote continuously during each tween step
+        for _ = 1, math.floor(duration / collectDelay) do
+            collectVisibleBonds() -- Collect visible Bonds
+            task.wait(collectDelay) -- Wait briefly before the next collection attempt
         end
     end
 
-    -- Final update on total number of Bonds collected
-    print("Total Bonds collected:", #trackedBonds)
+    -- Final update after completion
+    print("Finished tweening and collecting Bonds. Total Bonds collected:", #trackedBonds)
 end)
