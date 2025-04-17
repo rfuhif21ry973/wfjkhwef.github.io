@@ -17,7 +17,7 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for tweening
 local duration = 0.5 -- Tween duration
-local walkDelay = 0.1 -- Delay between proximity checks
+local walkDelay = 0.1 -- Delay between checks
 
 -- Creates a floating label above the Bond
 local function createBillboard(bond)
@@ -85,9 +85,9 @@ for z = startZ, endZ, stepZ do
 
     -- Track Bonds during tweening
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart and not table.find(trackedBonds, bond.PrimaryPart.Position) then
+        if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart then
             table.insert(trackedBonds, bond.PrimaryPart.Position) -- Store Bond location
-        elseif bond:IsA("BasePart") and bond.Name:match("Bond") and not table.find(trackedBonds, bond.Position) then
+        elseif bond:IsA("BasePart") and bond.Name:match("Bond") then
             table.insert(trackedBonds, bond.Position) -- Store Bond location
         end
     end
@@ -100,10 +100,12 @@ for _, bondPosition in ipairs(trackedBonds) do
 
     -- Check nearby Bonds and collect them
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        local distance = bond.PrimaryPart and (bond.PrimaryPart.Position - bondPosition).Magnitude or (bond.Position - bondPosition).Magnitude
-        if distance and distance <= collectDistance then
-            remote:FireServer(bond) -- Collect Bond
-            print("Collected Bond:", bond.Name)
+        if bond.Name:match("Bond") then -- Ensure the name matches "Bond"
+            local distance = bond.PrimaryPart and (bond.PrimaryPart.Position - bondPosition).Magnitude or (bond.Position - bondPosition).Magnitude
+            if distance and distance <= collectDistance then
+                remote:FireServer(bond) -- Collect Bond
+                print("Collected Bond:", bond.Name)
+            end
         end
         task.wait(walkDelay) -- Add a delay to prevent overwhelming the server
     end
