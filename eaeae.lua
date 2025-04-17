@@ -16,7 +16,7 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local delayBetweenCollections = 0.2 -- Adjusted delay for consistent collection
+local delayBetweenCollections = 0.2 -- Delay for consistent remote processing
 
 local trackedBonds = {} -- Table to store unique Bond objects
 
@@ -29,12 +29,12 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to track all visible Bonds during tweening
-local function trackBonds()
+-- Function to continuously track and update the list of Bonds
+local function trackAllBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
         if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add Bond to the tracked list
-            print("Bond found:", bond.Name)
+            table.insert(trackedBonds, bond) -- Add new Bond to the tracked list
+            print("New Bond detected and tracked:", bond.Name)
         end
     end
 end
@@ -42,21 +42,21 @@ end
 -- Function to collect a Bond
 local function collectBond(bond)
     if bond:IsA("Model") and bond.PrimaryPart then
-        remote:FireServer(bond) -- Fire remote for Model's PrimaryPart
+        remote:FireServer(bond) -- Fire the remote for the Bond
         print("Collected Bond (Model):", bond.Name)
     elseif bond:IsA("BasePart") then
-        remote:FireServer(bond) -- Fire remote for BasePart
+        remote:FireServer(bond) -- Fire the remote for BasePart
         print("Collected Bond (BasePart):", bond.Name)
     end
-    task.wait(delayBetweenCollections) -- Add delay to ensure the remote processes properly
+    task.wait(delayBetweenCollections) -- Add delay for consistent processing
 end
 
 -- Start script logic
 task.spawn(function()
-    -- Tween through the Z range and track Bonds during each step
+    -- Continuously track Bonds while tweening
     for z = startZ, endZ, stepZ do
         tweenToPosition(z) -- Tween player movement
-        trackBonds() -- Track Bonds at each position
+        trackAllBonds() -- Track all Bonds dynamically at this step
     end
 
     -- After tweening, teleport to each tracked Bond and collect them
@@ -69,7 +69,7 @@ task.spawn(function()
         end
 
         if bondPos then
-            root.CFrame = CFrame.new(bondPos) -- Teleport to Bond
+            root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
             collectBond(bond) -- Collect the Bond
         end
     end
