@@ -32,21 +32,26 @@ end
 local function trackBonds()
     for _, item in pairs(runtimeItems:GetChildren()) do
         -- Only track items explicitly named "Bond"
-        if item:IsA("Model") and item.Name:match("Bond") and item.PrimaryPart and not table.find(trackedBonds, item) then
-            table.insert(trackedBonds, item) -- Add the unique Bond object
-            print("Bonds found so far: " .. #trackedBonds) -- Update count
-        elseif item:IsA("BasePart") and item.Name:match("Bond") and not table.find(trackedBonds, item) then
-            table.insert(trackedBonds, item) -- Add the unique Bond object
-            print("Bonds found so far: " .. #trackedBonds) -- Update count
+        if item.Name:match("Bond") and not table.find(trackedBonds, item) then
+            if item:IsA("Model") and item.PrimaryPart then
+                table.insert(trackedBonds, item) -- Add Model with a defined PrimaryPart
+                print("Bond found (Model):", item.Name)
+            elseif item:IsA("BasePart") then
+                table.insert(trackedBonds, item) -- Add BasePart directly
+                print("Bond found (BasePart):", item.Name)
+            end
         end
     end
 end
 
 -- Function to collect a Bond
 local function collectBond(bond)
-    if remote and bond then
-        remote:FireServer(bond) -- Attempt to collect the Bond via the remote
-        print("Collected Bond:", bond.Name)
+    if bond:IsA("Model") and bond.PrimaryPart then
+        remote:FireServer(bond) -- Collect the Bond using the Model's PrimaryPart
+        print("Collected Bond (Model):", bond.Name)
+    elseif bond:IsA("BasePart") then
+        remote:FireServer(bond) -- Collect the Bond if it’s a BasePart
+        print("Collected Bond (BasePart):", bond.Name)
     end
 end
 
@@ -64,10 +69,18 @@ task.spawn(function()
 
     -- At the end of the tween, teleport to all tracked bonds extremely fast and collect them
     for _, bond in ipairs(trackedBonds) do
-        local bondPos = bond.PrimaryPart and bond.PrimaryPart.Position or bond.Position
-        root.CFrame = CFrame.new(bondPos)
-        collectBond(bond) -- Collect the Bond
-        task.wait(0.1) -- Very fast teleport delay (adjustable)
+        local bondPos = nil
+        if bond:IsA("Model") and bond.PrimaryPart then
+            bondPos = bond.PrimaryPart.Position -- Use PrimaryPart for Models
+        elseif bond:IsA("BasePart") then
+            bondPos = bond.Position -- Use Position for BaseParts
+        end
+
+        if bondPos then
+            root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
+            collectBond(bond) -- Collect the Bond
+            task.wait(0.1) -- Very fast teleport delay (adjustable)
+        end
     end
 
     -- Final update on total number of Bonds collected
