@@ -16,6 +16,7 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -2000
 local duration = 0.5 -- Duration for each tween step
+local teleportDelay = 1 -- Delay between teleports (increased for slower collection)
 
 local trackedBonds = {} -- Table to store unique Bond objects
 
@@ -65,6 +66,7 @@ task.spawn(function()
     for z = startZ, endZ, stepZ do
         tweenToPosition(z)
         trackBonds() -- Track bonds during each step
+        task.wait(teleportDelay) -- Increased delay to ensure collection happens properly
     end
 
     -- At the end of the tween, teleport to all tracked bonds extremely fast and collect them
@@ -79,7 +81,7 @@ task.spawn(function()
         if bondPos then
             root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
             collectBond(bond) -- Collect the Bond
-            task.wait(0.1) -- Very fast teleport delay (adjustable)
+            task.wait(0.5) -- Slight delay between collections for reliability
         end
     end
 
