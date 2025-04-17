@@ -1,14 +1,11 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local plr = Players.LocalPlayer
 local chr = plr.Character or plr.CharacterAdded:Wait()
 local root = chr:WaitForChild("HumanoidRootPart")
 local runtimeItems = Workspace:WaitForChild("RuntimeItems")
-
-local remote = ReplicatedStorage.Packages.RemotePromise.Remotes.C_ActivateObject -- Remote for collecting Bonds
 
 local x = 57
 local y = 3
@@ -16,12 +13,9 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local collectionRadius = 20 -- Radius for collecting nearby Bonds after teleportation
 local teleportDelay = 0.7 -- Delay between teleporting to Bond locations
-local maxRetries = 3 -- Number of retry passes
 
 local trackedBonds = {} -- Table to store all Bond objects
-local remainingBonds = {} -- To revisit uncollected Bonds
 
 -- Function to create a tween to move the player
 local function tweenToPosition(newZ)
@@ -37,65 +31,31 @@ local function trackBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
         if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
             table.insert(trackedBonds, bond) -- Track new Bond
-            table.insert(remainingBonds, bond) -- Add to remaining Bonds for collection
             print("Tracking Bond:", bond.Name, "| Location:", bond:GetModelCFrame().Position)
         end
     end
 end
 
--- Function to collect a Bond
-local function collectBond(bond)
-    if bond:IsA("Model") and bond.PrimaryPart then
-        remote:FireServer(bond)
-        print("Collected Bond:", bond.Name)
-    elseif bond:IsA("BasePart") then
-        remote:FireServer(bond)
-        print("Collected Bond (BasePart):", bond.Name)
-    end
-end
-
--- Function to collect all nearby Bonds after teleportation
-local function collectNearbyBonds()
-    for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond:IsA("Model") and bond.Name:match("Bond") then
-            local distance = (root.Position - bond:GetModelCFrame().Position).Magnitude
-            if distance <= collectionRadius then
-                collectBond(bond) -- Collect Bond within the collection radius
-            end
-        end
-    end
-end
-
--- Function to process all remaining Bonds
-local function processRemainingBonds(pass)
-    print("Starting collection pass:", pass)
-    local uncollected = {}
-
-    for _, bond in ipairs(remainingBonds) do
-        -- Check if the Bond still exists in Workspace
+-- Function to teleport to tracked Bonds
+local function teleportToTrackedBonds()
+    for _, bond in ipairs(trackedBonds) do
         if runtimeItems:FindFirstChild(bond.Name) then
+            local bondPos = nil
             if bond:IsA("Model") and bond.PrimaryPart then
-                root.CFrame = CFrame.new(bond.PrimaryPart.Position) -- Teleport to Bond
-                collectNearbyBonds() -- Collect all Bonds within the collection radius
+                bondPos = bond.PrimaryPart.Position -- Use PrimaryPart for Model
             elseif bond:IsA("BasePart") then
-                root.CFrame = CFrame.new(bond.Position) -- Teleport to Bond
-                collectNearbyBonds() -- Collect all Bonds within the collection radius
+                bondPos = bond.Position -- Use Position for BasePart
+            end
+
+            if bondPos then
+                root.CFrame = CFrame.new(bondPos) -- Teleport to Bond location
+                print("Teleported to Bond:", bond.Name, "| Location:", bondPos)
             end
             task.wait(teleportDelay) -- Delay before teleporting to the next Bond
         else
-            print("Bond already collected or removed:", bond.Name)
+            print("Bond no longer exists in Workspace:", bond.Name)
         end
     end
-
-    -- Update remaining Bonds list for the next pass
-    for _, bond in ipairs(remainingBonds) do
-        if runtimeItems:FindFirstChild(bond.Name) then
-            table.insert(uncollected, bond) -- Retain only uncollected Bonds
-        end
-    end
-
-    remainingBonds = uncollected -- Refresh the list for the next pass
-    print("Pass complete. Bonds still uncollected:", #remainingBonds)
 end
 
 -- Start script logic
@@ -106,17 +66,10 @@ task.spawn(function()
         trackBonds() -- Dynamically track Bonds
     end
 
-    -- After tweening, teleport to all tracked Bonds and retry if necessary
-    print("Finished tweening. Total Bonds tracked:", #trackedBonds)
-    for pass = 1, maxRetries do
-        if #remainingBonds > 0 then
-            processRemainingBonds(pass) -- Retry collection for uncollected Bonds
-        else
-            print("All Bonds collected!")
-            break
-        end
-    end
+    -- After tweening, teleport to all tracked Bonds
+    print("Finished tweening. Starting teleportation to tracked Bonds.")
+    teleportToTrackedBonds()
 
-    -- Final log after all retries
-    print("Collection complete. Total Bonds collected:", #trackedBonds - #remainingBonds)
+    -- Final log after teleportation
+    print("Teleportation complete. Total Bonds tracked:", #trackedBonds)
 end)
