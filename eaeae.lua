@@ -17,8 +17,10 @@ local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
 local delayBetweenCollections = 0.2 -- Delay to ensure reliable remote processing
+local maxRetries = 3 -- Number of retry passes
 
-local trackedBonds = {} -- Table to store unique Bond objects
+local trackedBonds = {} -- Table to store all Bond objects
+local remainingBonds = {} -- To revisit uncollected Bonds
 
 -- Function to create a tween to move the player
 local function tweenToPosition(newZ)
@@ -29,12 +31,13 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to track and log Bond locations
+-- Function to dynamically track and log Bond locations
 local function trackBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
         if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add Bond to the tracked list
-            print("Bond tracked:", bond.Name, "| Location:", bond:GetModelCFrame().Position)
+            table.insert(trackedBonds, bond) -- Track new Bond
+            table.insert(remainingBonds, bond) -- Add to remaining Bonds for collection
+            print("Tracking Bond:", bond.Name, "| Location:", bond:GetModelCFrame().Position)
         end
     end
 end
@@ -42,13 +45,34 @@ end
 -- Function to collect a Bond
 local function collectBond(bond)
     if bond:IsA("Model") and bond.PrimaryPart then
-        remote:FireServer(bond) -- Fire remote for Model's PrimaryPart
-        print("Collected Bond (Model):", bond.Name)
+        remote:FireServer(bond)
+        print("Collected Bond:", bond.Name)
     elseif bond:IsA("BasePart") then
-        remote:FireServer(bond) -- Fire remote for BasePart
+        remote:FireServer(bond)
         print("Collected Bond (BasePart):", bond.Name)
     end
-    task.wait(delayBetweenCollections) -- Add delay to ensure the remote processes properly
+end
+
+-- Function to collect all remaining Bonds
+local function processRemainingBonds(pass)
+    print("Starting collection pass:", pass)
+    local uncollected = {}
+
+    for _, bond in ipairs(remainingBonds) do
+        if bond:IsA("Model") and bond.PrimaryPart then
+            root.CFrame = CFrame.new(bond.PrimaryPart.Position) -- Teleport to Bond
+            collectBond(bond) -- Collect Bond
+        elseif bond:IsA("BasePart") then
+            root.CFrame = CFrame.new(bond.Position) -- Teleport to Bond
+            collectBond(bond) -- Collect Bond
+        else
+            table.insert(uncollected, bond) -- Add to uncollected list if collection fails
+        end
+        task.wait(delayBetweenCollections)
+    end
+
+    remainingBonds = uncollected -- Update the remaining Bonds for the next pass
+    print("Pass complete. Bonds still uncollected:", #remainingBonds)
 end
 
 -- Start script logic
@@ -56,25 +80,20 @@ task.spawn(function()
     -- Tween through the Z range and log Bonds dynamically
     for z = startZ, endZ, stepZ do
         tweenToPosition(z) -- Tween player movement
-        trackBonds() -- Track and log Bonds at each step
+        trackBonds() -- Dynamically track Bonds
     end
 
-    -- After tweening, teleport to all tracked Bonds and collect them
-    print("Finished tweening. Starting collection process.")
-    for _, bond in ipairs(trackedBonds) do
-        local bondPos = nil
-        if bond:IsA("Model") and bond.PrimaryPart then
-            bondPos = bond.PrimaryPart.Position -- Use Model's PrimaryPart position
-        elseif bond:IsA("BasePart") then
-            bondPos = bond.Position -- Use BasePart position
-        end
-
-        if bondPos then
-            root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
-            collectBond(bond) -- Collect the Bond
+    -- After tweening, teleport to all tracked Bonds and retry if necessary
+    print("Finished tweening. Total Bonds tracked:", #trackedBonds)
+    for pass = 1, maxRetries do
+        if #remainingBonds > 0 then
+            processRemainingBonds(pass) -- Retry collection for uncollected Bonds
+        else
+            print("All Bonds collected!")
+            break
         end
     end
 
-    -- Final log after collection
-    print("Finished collecting Bonds. Total Bonds collected:", #trackedBonds)
+    -- Final log after all retries
+    print("Collection complete. Total Bonds collected:", #trackedBonds - #remainingBonds)
 end)
