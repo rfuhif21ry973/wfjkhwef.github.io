@@ -16,6 +16,7 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
+local collectWait = 0.3 -- Small wait to ensure Bond collection happens
 
 local detectionRadius = 150 -- Radius for highlighting Bonds
 local trackedBonds = {} -- Table to store unique Bond objects
@@ -92,6 +93,7 @@ local function collectBond(bond)
         remote:FireServer(bond) -- Collect the Bond if it’s a BasePart
         print("Collected Bond (BasePart):", bond.Name)
     end
+    task.wait(collectWait) -- Small wait after collecting
 end
 
 -- Start script logic
@@ -114,7 +116,7 @@ task.spawn(function()
 
         if bondPos then
             root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
-            collectBond(bond) -- Collect the Bond
+            collectBond(bond) -- Collect the Bond with a small wait
             task.wait(0.1) -- Very fast teleport delay (adjustable)
         end
     end
