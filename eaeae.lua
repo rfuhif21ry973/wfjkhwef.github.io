@@ -15,16 +15,28 @@ local stepZ = -3000 -- Step size for tweening
 local duration = 0.5 -- Duration for each tween step
 
 local trackedBonds = {} -- Table to store Bond objects
-local gui = plr.PlayerGui:FindFirstChild("BondGUI") or Instance.new("ScreenGui", plr.PlayerGui) -- Ensure GUI exists
 
+-- Create the GUI
+local gui = plr.PlayerGui:FindFirstChild("BondGUI") or Instance.new("ScreenGui", plr.PlayerGui)
 gui.Name = "BondGUI"
 
--- Function to create the GUI button for a Bond
+-- Create a scrollable frame for the Bond buttons
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Parent = gui
+scrollFrame.Size = UDim2.new(0.8, 0, 0.8, 0) -- Smaller size for mobile
+scrollFrame.Position = UDim2.new(0.1, 0, 0.1, 0) -- Centered on the screen
+scrollFrame.CanvasSize = UDim2.new(0, 0, 5, 0) -- Adjusted for scrolling
+scrollFrame.ScrollBarThickness = 10
+scrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ClipsDescendants = true
+
+-- Function to create Bond buttons in the scrollable frame
 local function createBondButton(bondName, bondPosition)
     local button = Instance.new("TextButton")
-    button.Parent = gui
-    button.Size = UDim2.new(0, 200, 0, 50)
-    button.Position = UDim2.new(0, 10, 0, (#gui:GetChildren() - 1) * 60) -- Position buttons dynamically
+    button.Parent = scrollFrame
+    button.Size = UDim2.new(0.9, 0, 0, 50) -- Smaller for compact display
+    button.Position = UDim2.new(0.05, 0, 0, (#scrollFrame:GetChildren() - 1) * 60) -- Dynamic positioning
     button.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
     button.TextColor3 = Color3.fromRGB(0, 0, 0)
     button.TextScaled = true
