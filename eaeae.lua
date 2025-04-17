@@ -29,7 +29,28 @@ scrollFrame.CanvasSize = UDim2.new(0, 0, 5, 0) -- Adjusted for scrolling
 scrollFrame.ScrollBarThickness = 10
 scrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 scrollFrame.BorderSizePixel = 0
-scrollFrame.ClipsDescendants = true
+scrollFrame.Visible = true -- Initially visible
+
+-- Create a minimize button
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Parent = gui
+minimizeButton.Size = UDim2.new(0, 100, 0, 50) -- Compact size for mobile
+minimizeButton.Position = UDim2.new(0.85, 0, 0, 10) -- Positioned in the top-right corner
+minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.TextScaled = true
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Text = "Minimize"
+
+-- Function to toggle the visibility of the scrollable frame
+minimizeButton.MouseButton1Click:Connect(function()
+    scrollFrame.Visible = not scrollFrame.Visible
+    if scrollFrame.Visible then
+        minimizeButton.Text = "Minimize"
+    else
+        minimizeButton.Text = "Maximize"
+    end
+end)
 
 -- Function to create Bond buttons in the scrollable frame
 local function createBondButton(bondName, bondPosition)
