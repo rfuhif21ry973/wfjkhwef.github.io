@@ -1,5 +1,6 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,10 +17,10 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local delayBetweenCollections = 0.2 -- Delay for consistent remote processing
-local numPasses = 3 -- Number of passes to attempt collection
+local collectDistance = 20 -- Distance within which Bonds will be collected
+local walkDelay = 0.1 -- Delay for processing collection checks
 
-local trackedBonds = {} -- Table to store unique Bond objects
+local trackedBonds = {} -- Table to track collected Bonds
 
 -- Function to create a tween to move the player
 local function tweenToPosition(newZ)
@@ -30,54 +31,99 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to continuously track and update the list of Bonds
-local function trackAllBonds()
+-- Function to create a floating label above the Bond
+local function createBillboard(bond)
+    if not bond:FindFirstChild("BondLabel") then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "BondLabel"
+        billboard.Size = UDim2.new(0, 100, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Adornee = bond:FindFirstChildWhichIsA("BasePart")
+        billboard.Parent = bond
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "BOND"
+        label.TextColor3 = Color3.fromRGB(255, 255, 0)
+        label.TextStrokeTransparency = 0
+        label.TextScaled = true
+        label.Font = Enum.Font.GothamBold
+        label.Parent = billboard
+    end
+end
+
+-- Function to add a highlight to the Bond
+local function highlightBond(bond)
+    if not bond:FindFirstChild("Highlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "Highlight"
+        highlight.FillColor = Color3.fromRGB(255, 215, 0)
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillTransparency = 0.3
+        highlight.OutlineTransparency = 0
+        highlight.Adornee = bond
+        highlight.Parent = bond
+    end
+end
+
+-- Highlight and label Bonds within detection radius
+local function highlightNearbyBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond.Name:match("Bond") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add new Bond to the tracked list
-            print("New Bond detected and tracked:", bond.Name)
+        if bond:IsA("Model") and bond.Name:match("Bond") then
+            local distance = (root.Position - bond:GetModelCFrame().Position).Magnitude
+            if distance <= 150 then -- Larger detection radius
+                createBillboard(bond)
+                highlightBond(bond)
+            else
+                local label = bond:FindFirstChild("BondLabel")
+                if label then label:Destroy() end
+
+                local highlight = bond:FindFirstChild("Highlight")
+                if highlight then highlight:Destroy() end
+            end
         end
     end
 end
 
--- Function to collect a Bond
-local function collectBond(bond)
-    if bond:IsA("Model") and bond.PrimaryPart then
-        remote:FireServer(bond) -- Fire the remote for the Bond
-        print("Collected Bond (Model):", bond.Name)
-    elseif bond:IsA("BasePart") then
-        remote:FireServer(bond) -- Fire the remote for BasePart
-        print("Collected Bond (BasePart):", bond.Name)
+-- Function to find the nearest Bond within collection distance
+local function GetNearestBond()
+    local closestBond = nil
+    local closestDistance = math.huge
+    for _, bond in pairs(runtimeItems:GetChildren()) do
+        if bond:IsA("Model") and bond.Name:match("Bond") then
+            local distance = (root.Position - bond:GetModelCFrame().Position).Magnitude
+            if distance < closestDistance then
+                closestBond = bond
+                closestDistance = distance
+            end
+        end
     end
-    task.wait(delayBetweenCollections) -- Add delay for consistent processing
+    return closestBond, closestDistance
 end
 
--- Start script logic
+-- Continuous monitoring for Bond collection
+RunService.Heartbeat:Connect(function()
+    highlightNearbyBonds() -- Continuously update visibility
+
+    local bond, distance = GetNearestBond()
+    if bond and distance <= collectDistance then
+        remote:FireServer(bond) -- Collect Bond
+        if not table.find(trackedBonds, bond) then
+            table.insert(trackedBonds, bond) -- Track collected Bond
+            print("Collected Bond:", bond.Name)
+        end
+    end
+    task.wait(walkDelay)
+end)
+
+-- Tween through the Z range (optional movement logic)
 task.spawn(function()
-    -- Continuously track Bonds while tweening
     for z = startZ, endZ, stepZ do
-        tweenToPosition(z) -- Tween player movement
-        trackAllBonds() -- Track all Bonds dynamically at this step
+        tweenToPosition(z)
+        task.wait(walkDelay) -- Small wait between steps
     end
 
-    -- After tweening, teleport to each tracked Bond and collect them in multiple passes
-    for pass = 1, numPasses do
-        print("Starting collection pass:", pass)
-        for _, bond in ipairs(trackedBonds) do
-            local bondPos = nil
-            if bond:IsA("Model") and bond.PrimaryPart then
-                bondPos = bond.PrimaryPart.Position -- Use Model's PrimaryPart position
-            elseif bond:IsA("BasePart") then
-                bondPos = bond.Position -- Use BasePart position
-            end
-
-            if bondPos then
-                root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
-                collectBond(bond) -- Collect the Bond
-            end
-        end
-    end
-
-    -- Final log after collection
-    print("Finished collecting Bonds in", numPasses, "passes. Total Bonds collected:", #trackedBonds)
+    print("Finished tweening.")
 end)
