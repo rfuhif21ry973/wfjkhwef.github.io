@@ -8,6 +8,8 @@ local chr = plr.Character or plr.CharacterAdded:Wait()
 local root = chr:WaitForChild("HumanoidRootPart")
 local runtimeItems = Workspace:WaitForChild("RuntimeItems")
 
+local remote = ReplicatedStorage.Packages.RemotePromise.Remotes.C_ActivateObject -- Remote for collecting Bonds
+
 local x = 57
 local y = 3
 local startZ = 30000
@@ -16,9 +18,8 @@ local stepZ = -2000
 local duration = 0.5 -- Duration for each tween step
 
 local trackedBonds = {} -- Table to store unique Bond objects
-local remote = ReplicatedStorage.Packages.RemotePromise.Remotes.C_ActivateObject -- Remote for collecting Bonds
 
--- Function to create a tween
+-- Function to create a tween to move the player
 local function tweenToPosition(newZ)
     local goal = {}
     goal.CFrame = CFrame.new(Vector3.new(x, y, newZ))
@@ -27,15 +28,16 @@ local function tweenToPosition(newZ)
     tween.Completed:Wait() -- Wait for the tween to complete
 end
 
--- Function to track bonds and update the bond count
+-- Function to track bonds during the tween
 local function trackBonds()
-    for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond:IsA("Model") and bond.PrimaryPart and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add the unique Bond object
-            print("Bonds found so far: " .. #trackedBonds) -- Print updated count
-        elseif bond:IsA("BasePart") and not table.find(trackedBonds, bond) then
-            table.insert(trackedBonds, bond) -- Add the unique Bond object
-            print("Bonds found so far: " .. #trackedBonds) -- Print updated count
+    for _, item in pairs(runtimeItems:GetChildren()) do
+        -- Only track items explicitly named "Bond"
+        if item:IsA("Model") and item.Name:match("Bond") and item.PrimaryPart and not table.find(trackedBonds, item) then
+            table.insert(trackedBonds, item) -- Add the unique Bond object
+            print("Bonds found so far: " .. #trackedBonds) -- Update count
+        elseif item:IsA("BasePart") and item.Name:match("Bond") and not table.find(trackedBonds, item) then
+            table.insert(trackedBonds, item) -- Add the unique Bond object
+            print("Bonds found so far: " .. #trackedBonds) -- Update count
         end
     end
 end
@@ -68,6 +70,6 @@ task.spawn(function()
         task.wait(0.1) -- Very fast teleport delay (adjustable)
     end
 
-    -- Final update on total number of Bonds
+    -- Final update on total number of Bonds collected
     print("Total Bonds collected:", #trackedBonds)
 end)
