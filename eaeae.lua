@@ -16,8 +16,8 @@ local startZ = 30000
 local endZ = -49032.99
 local stepZ = -3000 -- Step size for faster tweening
 local duration = 0.5 -- Duration for each tween step
-local delayBetweenCollections = 0.1 -- Faster remote processing delay
-local teleportDelay = 0.7 -- Delay between teleporting to each Bond
+local collectionRadius = 20 -- Radius for collecting nearby Bonds after teleportation
+local teleportDelay = 0.7 -- Delay between teleporting to Bond locations
 local maxRetries = 3 -- Number of retry passes
 
 local trackedBonds = {} -- Table to store all Bond objects
@@ -52,28 +52,49 @@ local function collectBond(bond)
         remote:FireServer(bond)
         print("Collected Bond (BasePart):", bond.Name)
     end
-    task.wait(delayBetweenCollections) -- Faster delay for collection
 end
 
--- Function to collect all remaining Bonds
+-- Function to collect all nearby Bonds after teleportation
+local function collectNearbyBonds()
+    for _, bond in pairs(runtimeItems:GetChildren()) do
+        if bond:IsA("Model") and bond.Name:match("Bond") then
+            local distance = (root.Position - bond:GetModelCFrame().Position).Magnitude
+            if distance <= collectionRadius then
+                collectBond(bond) -- Collect Bond within the collection radius
+            end
+        end
+    end
+end
+
+-- Function to process all remaining Bonds
 local function processRemainingBonds(pass)
     print("Starting collection pass:", pass)
     local uncollected = {}
 
     for _, bond in ipairs(remainingBonds) do
-        if bond:IsA("Model") and bond.PrimaryPart then
-            root.CFrame = CFrame.new(bond.PrimaryPart.Position) -- Teleport to Bond
-            collectBond(bond) -- Collect Bond
-        elseif bond:IsA("BasePart") then
-            root.CFrame = CFrame.new(bond.Position) -- Teleport to Bond
-            collectBond(bond) -- Collect Bond
+        -- Check if the Bond still exists in Workspace
+        if runtimeItems:FindFirstChild(bond.Name) then
+            if bond:IsA("Model") and bond.PrimaryPart then
+                root.CFrame = CFrame.new(bond.PrimaryPart.Position) -- Teleport to Bond
+                collectNearbyBonds() -- Collect all Bonds within the collection radius
+            elseif bond:IsA("BasePart") then
+                root.CFrame = CFrame.new(bond.Position) -- Teleport to Bond
+                collectNearbyBonds() -- Collect all Bonds within the collection radius
+            end
+            task.wait(teleportDelay) -- Delay before teleporting to the next Bond
         else
-            table.insert(uncollected, bond) -- Add to uncollected list if collection fails
+            print("Bond already collected or removed:", bond.Name)
         end
-        task.wait(teleportDelay) -- Delay before teleporting to the next Bond
     end
 
-    remainingBonds = uncollected -- Update the remaining Bonds for the next pass
+    -- Update remaining Bonds list for the next pass
+    for _, bond in ipairs(remainingBonds) do
+        if runtimeItems:FindFirstChild(bond.Name) then
+            table.insert(uncollected, bond) -- Retain only uncollected Bonds
+        end
+    end
+
+    remainingBonds = uncollected -- Refresh the list for the next pass
     print("Pass complete. Bonds still uncollected:", #remainingBonds)
 end
 
