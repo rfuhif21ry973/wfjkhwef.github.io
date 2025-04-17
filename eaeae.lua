@@ -117,7 +117,7 @@ task.spawn(function()
         if bondPos then
             root.CFrame = CFrame.new(bondPos) -- Teleport to the Bond
             collectBond(bond) -- Collect the Bond with a small wait
-            task.wait(0.1) -- Very fast teleport delay (adjustable)
+            task.wait(0.3) -- Very fast teleport delay (adjustable)
         end
     end
 
