@@ -59,8 +59,8 @@ end
 -- Highlight Bonds within range
 local function highlightNearbyBonds()
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond:IsA("Model") and bond.Name:match("Bond") then
-            local distance = (humanoidRootPart.Position - bond:GetModelCFrame().Position).Magnitude
+        if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart then
+            local distance = (humanoidRootPart.Position - bond.PrimaryPart.Position).Magnitude
             if distance <= 150 then -- Larger detection radius
                 createBillboard(bond)
                 highlightBond(bond)
@@ -87,8 +87,6 @@ for z = startZ, endZ, stepZ do
     for _, bond in pairs(runtimeItems:GetChildren()) do
         if bond:IsA("Model") and bond.Name:match("Bond") and bond.PrimaryPart then
             table.insert(trackedBonds, bond.PrimaryPart.Position) -- Store Bond location
-        elseif bond:IsA("BasePart") and bond.Name:match("Bond") then
-            table.insert(trackedBonds, bond.Position) -- Store Bond location
         end
     end
 end
@@ -100,8 +98,8 @@ for _, bondPosition in ipairs(trackedBonds) do
 
     -- Check nearby Bonds and collect them
     for _, bond in pairs(runtimeItems:GetChildren()) do
-        if bond.Name:match("Bond") then -- Ensure the name matches "Bond"
-            local distance = bond.PrimaryPart and (bond.PrimaryPart.Position - bondPosition).Magnitude or (bond.Position - bondPosition).Magnitude
+        if bond.Name:match("Bond") and bond.PrimaryPart then -- Ensure the name matches "Bond" and PrimaryPart exists
+            local distance = (bond.PrimaryPart.Position - bondPosition).Magnitude
             if distance and distance <= collectDistance then
                 remote:FireServer(bond) -- Collect Bond
                 print("Collected Bond:", bond.Name)
